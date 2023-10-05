@@ -1,0 +1,206 @@
+﻿CREATE SCHEMA HEALTHCARE;                      
+
+
+SET SEARCH_PATH TO HEALTHCARE;
+
+
+CREATE TABLE doctor(
+d_Name VARCHAR(30),
+d_ID CHAR(10),
+Specialisation VARCHAR(30),
+PRIMARY KEY (d_ID)
+);
+
+
+CREATE TABLE location(
+Area VARCHAR(40),
+Pincode numeric(6,0),
+PRIMARY KEY (Area)
+);
+
+
+
+
+CREATE TABLE patient(
+p_Name VARCHAR(30),
+p_ID CHAR(10),
+Password VARCHAR(20),
+Area VARCHAR(40),
+Birth_date DATE,
+Blood_Grp VARCHAR(5),
+gender CHAR(1),
+height INTEGER,
+weight NUMERIC,
+p_contact_number BIGINT,
+FOREIGN KEY (Area) REFERENCES location(Area)
+ON DELETE SET DEFAULT ON UPDATE CASCADE,
+PRIMARY KEY (p_ID)
+);
+
+
+
+
+CREATE TABLE Pharmacy_Store(
+pharmacy_id INTEGER,
+pharmacy_Name VARCHAR(30),
+pharmacist_Name VARCHAR(30),
+Area VARCHAR(40),
+pharmacy_contact_number BIGINT,
+PRIMARY KEY (pharmacy_id),
+FOREIGN KEY (Area) REFERENCES location(Area)
+ON DELETE SET DEFAULT ON UPDATE CASCADE
+);
+
+
+CREATE TABLE Medicine(
+m_name VARCHAR(40),
+m_ID CHAR(10),
+Category VARCHAR(30),
+price INTEGER NOT NULL,
+PRIMARY KEY (m_ID)
+);
+
+
+CREATE TABLE laboratory(
+l_ID CHAR(10),
+l_Name VARCHAR(40),
+Area VARCHAR(40),
+l_contact_number BIGINT,
+FOREIGN KEY (Area) REFERENCES location(Area)
+ON DELETE SET DEFAULT ON UPDATE CASCADE,
+PRIMARY KEY (l_ID)
+);
+
+
+CREATE TABLE test(
+Test_Name VARCHAR(40),
+Test_Category VARCHAR(30),
+PRIMARY KEY (Test_Name)
+);
+
+
+
+
+CREATE TABLE hospital(
+h_Name VARCHAR(40),
+Area VARCHAR(40),
+h_contact_number BIGINT,
+PRIMARY KEY (h_Name),
+FOREIGN KEY (Area) REFERENCES location(Area)
+ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+
+
+
+CREATE TABLE works_at(
+d_ID CHAR(10),
+h_Name VARCHAR(40),
+PRIMARY KEY (d_ID,h_Name),
+FOREIGN KEY (d_ID) REFERENCES doctor(d_ID)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (h_Name) REFERENCES hospital(h_Name)
+ON DELETE NO ACTION ON UPDATE CASCADE
+
+
+);
+
+
+CREATE TABLE treated_by(
+d_ID CHAR(10),
+h_Name VARCHAR(40),
+p_ID CHAR(10),
+Visit_Id INTEGER UNIQUE,
+Consultancy_charges INTEGER NOT NULL,
+Date DATE,
+PRIMARY KEY (d_ID,h_Name,p_ID,Visit_Id),
+FOREIGN KEY (d_ID, h_Name) REFERENCES works_at(d_ID, h_Name)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (p_ID) REFERENCES patient(p_ID)
+ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+
+CREATE TABLE diagnosis(
+checkup_details VARCHAR(40),
+Visit_Id INTEGER,
+PRIMARY KEY (Visit_Id,checkup_details),
+FOREIGN KEY (Visit_Id) REFERENCES treated_by(Visit_Id)
+ON DELETE NO ACTION ON UPDATE CASCADE
+);
+
+
+CREATE TABLE lab_test(
+l_ID CHAR(10),
+Test_Name VARCHAR(40),
+FOREIGN KEY (Test_Name) REFERENCES Test(Test_Name)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (l_ID) REFERENCES laboratory(l_ID)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+PRIMARY KEY (l_ID,Test_Name)
+);
+
+
+CREATE TABLE patient_test(
+Test_date DATE,
+Invoice_No INTEGER,
+Amount INTEGER NOT NULL,
+l_ID CHAR(10),
+p_ID CHAR(10),
+Test_Name VARCHAR(40),
+FOREIGN KEY (l_ID,Test_Name) REFERENCES lab_test(l_ID,Test_Name)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (p_ID) REFERENCES patient(p_ID)
+ON DELETE CASCADE ON UPDATE CASCADE,
+PRIMARY KEY (l_ID,p_ID,Test_Name,Invoice_No)
+);
+
+
+CREATE TABLE test_suggested(
+Test_Name VARCHAR(40),
+Visit_Id INTEGER ,
+FOREIGN KEY (Test_Name) REFERENCES Test(Test_Name)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (Visit_Id) REFERENCES Treated_by(Visit_Id)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+PRIMARY KEY (Test_Name,Visit_Id)
+);
+
+
+CREATE TABLE Has_Medicine(
+m_ID CHAR(10),
+pharmacy_id INTEGER,
+quantity INTEGER,
+FOREIGN KEY (m_ID) REFERENCES Medicine(m_ID)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (pharmacy_id) REFERENCES Pharmacy_Store(pharmacy_id)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+PRIMARY KEY (m_ID,pharmacy_id)
+);
+
+
+CREATE TABLE Buys_Med_From(
+m_ID CHAR(10),
+pharmacy_id INTEGER,
+Date DATE,
+Invoice_No INTEGER,
+AMOUNT INTEGER NOT NULL,
+p_ID CHAR(10),
+Purchase_qty INTEGER NOT NULL,
+FOREIGN KEY (m_ID,pharmacy_id) REFERENCES Has_Medicine(m_ID,pharmacy_id)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+FOREIGN KEY (p_ID) REFERENCES patient(p_ID)
+ON DELETE SET DEFAULT ON UPDATE CASCADE,
+PRIMARY KEY(m_ID,pharmacy_id,p_ID,Invoice_No )
+);
+
+
+CREATE TABLE Medicine_Recommended(
+m_ID CHAR(10),
+Visit_Id INTEGER,
+FOREIGN KEY (Visit_Id) REFERENCES treated_by(Visit_Id)
+ON DELETE SET DEFAULT ON UPDATE CASCADE,
+FOREIGN KEY (m_ID) REFERENCES Medicine(m_ID)
+ON DELETE NO ACTION ON UPDATE CASCADE,
+PRIMARY KEY(m_ID,Visit_Id)
+);

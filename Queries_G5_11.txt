@@ -1,0 +1,62 @@
+﻿Queries
+
+
+1. Check which pharmacy stores have medicines recommended by doctor for patient with p_id ‘x’ and doctor name  ‘y’ and area ’z’ in month w (Patient Perspective)
+ select * from has_medicine natural join pharmacy_store  natural join (select distinct m_id from medicine_recommended natural join(select visit_id from treated_by natural join doctor where p_id = '1000000015' and d_name = 'Rishabh Bharadwaj' and extract(month from treated_by.date) = 10   and extract(year from treated_by.date)  = 2017 )as s) as p where area = 'Paldi' ;
+
+
+1. Count the number of patients each gynaecologist in the city has treated in the month of October. (admin perspective)
+select d_name,count(distinct p_id) from doctor natural join treated_by where specialisation = 'Gynaecologist' and extract(month from date) = 10   and extract(year from date)  = 2017 group by d_name ;
+
+
+1. Count no. of patients each doctor has treated in each hospital. (doctor’s perspective)
+select d_name,h_name,count(distinct p_id) from treated_by natural join doctor group by d_name,h_name;
+
+
+1. List the total number of patients of the each of the laboratories for each of the tests. (Lab perspective)
+select l_id,l_name,test_name,count(p_id) from patient_test natural join lab_test natural join laboratory where extract(month from patient_test.test_date)  = 10 and extract(year from patient_test.test_date)  = 2017 group by test_name,l_name,l_id;
+
+
+1. List the most diagnosed detail in an area in a month
+SELECT checkup_details, total_m_id as total_patients FROM 
+(SELECT count(visit_id) AS total_m_id,checkup_details  FROM  diagnosis NATURAL JOIN treated_by  AS r WHERE EXTRACT(MONTH from DATE) = 10 AND EXTRACT(YEAR from DATE) = 2017 GROUP BY checkup_details ) AS r WHERE total_m_id = (SELECT max(total_m_id) FROM (SELECT count(visit_id) AS total_m_id,checkup_details  FROM  diagnosis NATURAL JOIN treated_by
+ AS r WHERE EXTRACT(MONTH from DATE) = 10 AND EXTRACT(YEAR from DATE) = 2017 GROUP BY checkup_details ) AS r) ;
+
+
+1. All treatment details of the patients diagnosed with x
+select p_id,p_name,d_name,h_name,treated_by.visit_id,m_name,test_name from treated_by natural join Patient natural join doctor left join Medicine_recommended on treated_by.visit_id = Medicine_recommended.visit_id Left join test_suggested on treated_by.visit_id=test_suggested.visit_id left join medicine on medicine.m_id=medicine_recommended.m_id where treated_by.visit_id in (select visit_id from diagnosis where checkup_details='Aortic Stenosis');
+
+
+1.  List the ids and names of patients who have not availed any of the facillities as provided by the service.
+select p_id,p_name from patient where p_id in(((select p_id from patient except select p_id from treated_by) except select p_id from patient_test)except select p_id from buys_med_from);
+
+
+1.  Maximum medicines sold in month of October (store perspective)
+SELECT * FROM medicine WHERE m_id IN ( SELECT m_id FROM (SELECT count(m_id) AS total_m_id, m_id  FROM  buys_med_from AS r WHERE EXTRACT(MONTH from DATE) = 10 AND EXTRACT(YEAR from DATE) = 2017 GROUP BY m_id ) AS r WHERE total_m_id = (SELECT max(total_m_id) FROM  (SELECT count(m_id) AS total_m_id, m_id FROM  buys_med_from  AS  r WHERE EXTRACT(MONTH from DATE) = 10 AND EXTRACT(YEAR from DATE) = 2017 GROUP BY m_id ) AS r) );  
+
+
+1.  List the name of  medicines recommended by doctor x to a patient with p_id = y
+SELECT * FROM medicine NATURAL JOIN  (SELECT * FROM medicine_recommended AS  m_r NATURAL JOIN (SELECT visit_id FROM treated_by NATURAL JOIN doctor    WHERE d_name='Rohit Shinde' AND p_id='1000000018') AS r ) AS q;
+
+
+1.  List the name of hospitals a patient with p_id x has visited.
+SELECT DISTINCT h_name  FROM treated_by WHERE p_id='1000000016';
+
+
+1. List which doctors patient x has visited in month m year y and what each doctor diagnosed
+SELECT d.*,m_name,test_name,checkup_details, EXTRACT(DAY from DATE) AS day FROM treated_by AS t NATURAL JOIN diagnosis AS dia NATURAL JOIN doctor AS d LEFT JOIN medicine_recommended AS m ON t.visit_id=m.visit_id LEFT JOIN test_suggested AS ts ON ts.visit_id=t.visit_id LEFT JOIN medicine ON m.m_id=medicine.m_id WHERE p_id = '1000000016' AND EXTRACT(MONTH from DATE) = 10 AND EXTRACT(YEAR from DATE) = 2017;
+
+
+1. Count how many times a laboratory performs a specific test
+SELECT Test_Name,l_Name, count (l_ID) as mycount FROM patient_test NATURAL JOIN lab_test NATURAL JOIN laboratory GROUP BY Test_Name,l_Name;
+
+
+1. List the doctors with a ‘x’ specialisation
+* In entire area:
+SELECT * FROM doctor NATURAL JOIN works_at NATURAL JOIN hospital WHERE doctor.specialisation='Oncologist' ;
+* In a particular area y:
+SELECT * FROM doctor NATURAL JOIN works_at NATURAL JOIN hospital WHERE doctor.specialisation='Oncologist' AND area='Ellisbridge';
+
+
+1. List of patients who go to hospitals in other area (i.e except the one in which they stay) 
+SELECT DISTINCT P.p_Name ,P.Area As P_Area, d.h_Name,d.Area from patient AS P NATURAL JOIN treated_by as t JOIN hospital as d ON t.h_Name = d.h_Name EXCEPT(SELECT DISTINCT s.p_Name ,s.Area, h.h_Name,h.Area from patient AS s NATURAL JOIN treated_by as r NATURAL JOIN hospital as h );

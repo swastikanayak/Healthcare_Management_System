@@ -1,0 +1,179 @@
+﻿Stored procedures and Triggers
+
+
+1. Stored procedure to get the different healthcare facilities in a particular area x.
+
+
+CREATE TYPE named_value AS (
+  service   text,
+  service_name varchar(40),
+  contact bigint
+);
+
+
+CREATE OR REPLACE FUNCTION get_services_in_area(area VARCHAR(40)) RETURNS SETOF named_value AS $BODY$
+DECLARE 
+h hospital%rowtype;
+l laboratory%rowtype;
+p pharmacy_store%rowtype;
+re named_value;
+BEGIN
+    FOR h IN SELECT * FROM hospital WHERE hospital.area=area
+    LOOP
+    re.service  = 'Hospital';
+    re.service_name = h.h_name;
+    re.contact = h.h_contact_number;
+    RETURN next re;
+    END LOOP;
+
+
+    FOR l IN SELECT * FROM laboratory WHERE laboratory.area=area
+    LOOP
+    re.service  = 'Laboratory';
+    re.service_name = l.l_name;
+    re.contact = l.l_contact_number;
+    RETURN next re;
+    END LOOP;
+
+
+    FOR p IN SELECT * FROM pharmacy_store WHERE pharmacy_store.area=area
+    LOOP
+    re.service  = 'Pharmacy Store';
+    re.service_name = p.pharmacy_name;
+    re.contact = p.pharmacy_contact_number;
+    RETURN next re;
+    END LOOP;
+END;
+$BODY$ LANGUAGE plpgsql;  
+
+
+SELECT *  FROM get_services_in_area('Paldi');
+1. Stored procedure to calculate total expenses of all the patients along with the money spent on lab tests, medicines and doctors each.
+
+
+CREATE TYPE patient_expenses As (
+p_Name text,
+p_ID CHAR(10),
+medicine_expenses INTEGER ,
+lab_expenses INTEGER ,
+consultation_expenses INTEGER ,
+total_expenses INTEGER 
+);
+
+
+CREATE OR REPLACE FUNCTION expenseValue() RETURNS SETOF patient_expenses AS $BODY$
+DECLARE
+p patient%rowtype;
+b Buys_Med_From%rowtype;
+t patient_test%rowtype;
+s treated_by%rowtype;
+re patient_expenses;
+m_t integer ;
+l_t integer ;
+c_t integer ;
+t_t integer ;
+BEGIN
+        FOR p IN SELECT * FROM patient
+        LOOP
+                m_t :=0;
+                l_t :=0;
+                c_t :=0;
+                re.p_Name = p.p_Name;
+                re.p_ID = p.p_ID;
+                FOR b IN SELECT * FROM Buys_Med_From WHERE Buys_Med_From.p_ID = p.p_ID
+                LOOP
+                m_t := m_t+ b.AMOUNT;
+                END LOOP;
+                re.medicine_expenses = m_t; 
+                FOR t IN SELECT * FROM patient_test WHERE patient_test.p_ID = p.p_ID
+                LOOP
+                l_t := l_t+ t.Amount;
+                END LOOP;
+                re.lab_expenses := l_t;
+                FOR s IN SELECT * FROM treated_by WHERE treated_by.p_ID = p.p_ID
+                LOOP
+                c_t := c_t + s.Consultancy_charges;
+                END LOOP;
+                re.consultation_expenses:= c_t;
+                re.total_expenses := m_t+c_t+l_t;
+                RETURN next re;
+        END LOOP;
+END;
+$BODY$ LANGUAGE plpgsql;  
+
+
+SELECT *  FROM expenseValue();
+
+
+1. Stored procedure to calculate the age and BMI of a patient.
+
+
+CREATE TYPE AGEnBMI AS (
+  years  integer,
+  bmi numeric
+);
+CREATE OR REPLACE FUNCTION currentAgeNBmi(p_iD CHAR) RETURNS AGEnBMI 
+AS $BODY$
+DECLARE
+q patient%rowtype;
+tmp integer;
+age integer;
+bmi numeric;
+re AGEnBMI;
+BEGIN
+        SELECT * INTO q FROM patient WHERE patient.p_ID = p_iD ;
+        SELECT (DATE_PART('year',now()::date) - DATE_PART('year',  patient.birth_date::date)) * 12 +
+              (DATE_PART('month', now()::date) - DATE_PART('month',  patient.birth_date::date)) INTO tmp FROM patient WHERE patient.p_ID = p_iD ;
+        bmi = q.weight*10000/(q.height*q.height);
+        re.years = tmp/12;
+        re.bmi = bmi;
+        RETURN re;
+END;
+$BODY$ LANGUAGE plpgsql;
+SELECT *  FROM currentAgeNBmi('1000000010');
+
+
+
+
+1. Trigger Function to update the total cost of the medicines bought by the patient and accordingly update the stock of the pharmacy store.
+
+
+
+
+CREATE OR REPLACE FUNCTION stockmanage() RETURNS trigger AS
+$BODY$
+DECLARE
+      price integer;
+      qty integer;
+        oldqty integer;
+        newqty integer;
+BEGIN
+IF(TG_OP = 'INSERT') then
+select medicine.price into price from medicine where medicine.m_id = NEW.m_id;
+select NEW.purchase_qty into qty;
+update buys_med_from set amount = qty*price where
+buys_med_from.invoice_no=NEW.invoice_no AND buys_med_from.m_id=NEW.m_id;
+
+
+select has_medicine.quantity  into oldqty from has_medicine where has_medicine.m_id=NEW.m_id and has_medicine.pharmacy_id  = NEW.pharmacy_id ;
+
+
+if(oldqty<qty) then
+raise notice 'Sorry the pharmacy store does not have enough quantity';
+delete from buys_med_from where buys_med_from.invoice_no=NEW.invoice_no AND buys_med_from.m_id=NEW.m_id;
+return null;
+elsif(oldqty>=qty) then
+update has_medicine set quantity = quantity - qty where has_medicine.m_id = NEW.m_id and
+has_medicine.pharmacy_id  = NEW.pharmacy_id ;
+select has_medicine.quantity  into newqty from has_medicine where has_medicine.m_id=NEW.m_id and has_medicine.pharmacy_id  = NEW.pharmacy_id ;
+return NEW;
+end if;
+end if;
+return null;
+END;
+$BODY$ LANGUAGE plpgsql;
+
+
+Create trigger stockop
+after insert on buys_med_from
+for each row execute procedure stockmanage();
